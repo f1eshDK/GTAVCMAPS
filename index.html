@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTA3MAPS</title>
+    <link rel="icon" type="image/png" href="./favicons/III.png">
+    <style>
+        @font-face {
+            font-family: 'Pricedown';
+            src: url('./fonts/pricedown.otf') format('opentype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            margin: 0;
+            padding: 40px 20px;
+            background-color: #81c1ea; /* Фирменный цвет океана GTA III */
+            font-family: 'Rubik', Arial, sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 85vh;
+        }
+
+        /* Главный заголовок в фирменном стиле GTA III */
+        h1 {
+            font-family: 'Pricedown', 'Arial Black', sans-serif;
+            font-size: 50px;
+            font-weight: normal;
+            letter-spacing: 2.5px;
+            margin-bottom: 40px;
+            text-align: center;
+            color: #ffffff;
+            text-shadow: 
+                /* --- ТОЛСТАЯ ЧЕРНАЯ ОБВОДКА --- */
+                -3px -3px 0 #000000,
+                3px -3px 0 #000000,
+                -3px  3px 0 #000000,
+                3px  3px 0 #000000,
+                0px -3px 0 #000000,
+                0px  3px 0 #000000,
+                -3px  0px 0 #000000,
+                3px  0px 0 #000000,
+                -2px -3px 0 #000000,
+                2px -3px 0 #000000,
+                -2px  3px 0 #000000,
+                2px  3px 0 #000000,
+
+                /* --- ТОНКАЯ ЗОЛОТАЯ КАЙМА СНАРУЖИ --- */
+                -4.5px -4.5px 0 #c8b47c,
+                4.5px -4.5px 0 #c8b47c,
+                -4.5px  4.5px 0 #c8b47c,
+                4.5px  4.5px 0 #c8b47c,
+                0px   -4.5px 0 #c8b47c,
+                0px    4.5px 0 #c8b47c,
+                -4.5px  0px   0 #c8b47c,
+                4.5px  0px   0 #c8b47c;
+        }
+
+        h1 span {
+            color: #b80000; /* Темно-красный оттенок для III с обложки игры */
+        }
+
+        .maps-grid {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 900px;
+            width: 100%;
+        }
+
+        /* Базовый стиль карточки (использует CSS-переменные цвета) */
+        .map-card {
+            /* Цвета по умолчанию, если не задана своя тема */
+            --card-accent: #ff0000;
+            --card-text: #e2e8f0;
+
+            background: rgba(20, 20, 20, 0.9);
+            border: 2px solid #c8b47c; /* Базовая золотистая рамка GTA III */
+            border-radius: 10px;
+            padding: 25px 20px;
+            width: 240px;
+            min-height: 85px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            text-decoration: none;
+            color: white;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+            transition: transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        /* При наведении рамка окрашивается в индивидуальный цвет карты */
+        .map-card:hover {
+            transform: translateY(-5px);
+            background: rgba(30, 30, 30, 0.98);
+            border-color: var(--card-accent);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.6);
+            cursor: pointer;
+        }
+
+        .map-card h2 {
+            font-family: 'Pricedown', 'Arial Black', sans-serif;
+            font-weight: normal;
+            letter-spacing: 1px;
+            margin: 0 0 12px 0;
+            font-size: 26px;
+            line-height: 1.15;
+            color: var(--card-accent);
+            -webkit-text-stroke: 3px #000000;
+            paint-order: stroke fill;
+        }
+
+        .map-card p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--card-text);
+            line-height: 1.4;
+        }
+
+        /* Стиль для счетчика собранных предметов */
+        .progress-text {
+            font-weight: 600;
+            letter-spacing: 0.4px;
+        }
+
+        /* ==========================================
+            ИНДИВИДУАЛЬНЫЕ ЦВЕТА ДЛЯ КАЖДОЙ КАРТЫ
+          ========================================== */
+        
+        /* Скрытые пакеты — фирменный красный */
+        .theme-pacs {
+            --card-accent: #ff2a2a;
+            --card-text: #ffd6d6;
+        }
+        
+        .theme-jumps {
+            --card-accent: #ffaa00;
+            --card-text: #ffe5b0;
+        }
+
+        .theme-rampages {
+            --card-accent: #b86bff;
+            --card-text: #e2c7ff;
+        }
+
+        .theme-race {
+            --card-accent: #6b9aff;
+            --card-text: #c7e6ff;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Интерактивные карты GTA <span>III</span></h1>
+
+    <div class="maps-grid">
+        <!-- КАРТА со скрытыми пакетами -->
+        <a href="./pacs.html" class="map-card theme-pacs" data-prefix="pacs_" data-total="100">
+            <h2>пакеты</h2>
+            <p class="progress-text">Собрано: 0 / 100</p>
+        </a>
+        <!-- КАРТА с трамплинами -->
+        <a href="./stunt.html" class="map-card theme-jumps" data-prefix="stunt_" data-total="20">
+            <h2>трамплины</h2>
+            <p class="progress-text">Собрано: 0 / 20</p>
+        </a>
+        <!-- КАРТА со вспышками ярости  -->
+        <a href="./rampage.html" class="map-card theme-rampages" data-prefix="rampage_" data-total="20">
+            <h2>ярость</h2>
+            <p class="progress-text">Собрано: 0 / 20</p>
+        </a>
+        <!-- КАРТА с гонками  -->
+        <a href="./race.html" class="map-card theme-race" data-prefix="race_" data-total="8">
+            <h2>гонки</h2>
+            <p class="progress-text">Собрано: 0 / 8</p>
+        </a>
+    </div>
+
+    <script>
+    function updateMainPageProgress() {
+        document.querySelectorAll('.map-card').forEach(card => {
+            const prefix = card.getAttribute('data-prefix');
+            const total = Number(card.getAttribute('data-total'));
+            const textElement = card.querySelector('.progress-text');
+
+            let count = 0;
+
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith(prefix) && localStorage.getItem(key) === 'collected') {
+                    count++;
+                }
+            }
+
+            // Если это карта Ярости — делим найденные точки на 2
+            if (prefix === 'rampage_') {
+                count = Math.floor(count / 2);
+            }
+
+            if (count >= total && total > 0) {
+                textElement.textContent = `✔ Собрано: ${count} / ${total}`;
+                textElement.style.fontWeight = 'bold';
+            } else {
+                textElement.textContent = `Собрано: ${count} / ${total}`;
+                textElement.style.fontWeight = 'normal';
+            }
+        });
+    }
+
+    updateMainPageProgress();
+    window.addEventListener('pageshow', updateMainPageProgress);
+</script>
+
+</body>
+</html>

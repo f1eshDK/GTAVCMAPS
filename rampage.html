@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GTA III Ярость</title>
+    <link rel="icon" type="image/png" href="./favicons/III.png">
+    <style>
+        @font-face {
+            font-family: 'Pricedown';
+            src: url('./fonts/pricedown.otf') format('opentype'); 
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #81c1ea; /* Цвет океана */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden; /* Запрещает дергание страницы при перетаскивании карты */
+        }
+
+        /* Контейнер карты */
+        .map-container {
+            position: relative;
+            width: 1024px;  
+            max-width: 100%;
+            height: auto;
+            aspect-ratio: 1024 / 768;
+
+            transform-origin: 0 0;
+            transform: translate(var(--zoom-x, 0px), var(--zoom-y, 0px)) scale(var(--map-scale, 1));
+            transition: transform 0.1s ease-out;
+
+            /* Настройки для плавного перетаскивания без выделения */
+            touch-action: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            cursor: grab;
+        }
+
+        .map-container:active {
+            cursor: grabbing;
+        }
+
+        /* Картинка подложки карты */
+        .map-image {
+            width: 100%;
+            height: 100%;
+            display: block;
+            pointer-events: none; /* Чтобы браузер не перетаскивал саму картинку-призрак */
+        }
+
+        /* Общий стиль для всех меток */
+        .marker {
+            position: absolute;
+            width: calc(12px / var(--map-scale, 1));
+            aspect-ratio: 1 / 1; 
+            border: calc(2px / var(--map-scale, 1)) solid #8614f0;
+            background-color: #8614f0;
+            border-radius: 50%;
+            transform: translate(-50%, -50%); 
+            cursor: pointer;
+            z-index: 10;
+            box-sizing: border-box; 
+        }
+
+        .marker.rampage {
+            background-color: #8614f0;
+        }
+
+        /* Стиль всплывающего окна с текстом */
+        .marker::after {
+            content: attr(data-title);
+            position: absolute;
+            bottom: calc(20px / var(--map-scale, 1)); 
+            left: 50%;
+            transform: translateX(-50%) scale(calc(1 / var(--map-scale, 1)));
+            transform-origin: bottom center;
+            background: rgba(20, 20, 20, 0.95); 
+            color: white;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: Arial, sans-serif;
+            white-space: pre-line; 
+            display: none; 
+            z-index: 20;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid rgb(17, 18, 24); 
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .marker:hover::after { display: block; }
+        .marker.show-screenshot:hover::after { display: none; }
+
+        /* Базовый стиль скриншота */
+        .marker img {
+            display: none;
+            position: absolute;
+            bottom: calc(20px / var(--map-scale, 1)); 
+            left: 50%;
+            transform: translateX(-50%);
+            
+            width: calc(320px / var(--map-scale, 1));
+            min-width: calc(130px / var(--map-scale, 1)); 
+            max-width: calc(450px / var(--map-scale, 1)); 
+
+            aspect-ratio: 16 / 9; 
+            height: auto; 
+            
+            border: calc(2px / var(--map-scale, 1)) solid #8614f0;
+            border-radius: calc(6px / var(--map-scale, 1));
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            pointer-events: none; 
+            object-fit: cover;
+        }
+
+        /* Класс показа скрина */
+        .marker.show-screenshot img {
+            display: block;
+            animation: fadeIn 0.2s ease-in-out;
+        }
+
+        .marker.show-screenshot { z-index: 9999; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateX(-50%) translateY(5px); }
+            to { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
+
+        .marker.rampage.collected {
+            background-color: rgba(102, 102, 102, 0.5); 
+            border-color: rgba(153, 153, 153, 0.5); 
+            box-shadow: none;                            
+        }
+
+        .marker.rampage.collected img {
+            opacity: 1 !important;
+            filter: none !important;
+        }
+
+        /* Панель управления счетчиком */
+        .counter-box {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(20, 20, 20, 0.85);
+            color: #fff;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #8614f0;
+            z-index: 99999;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .counter-box span:first-child {
+            pointer-events: none;
+        }
+
+        #counter-value {
+            color: #8614f0;
+        }
+
+        /* Кнопка сброса */
+        #reset-btn {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid #ff4444;
+            color: #ff8888;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: none;
+        }
+
+        #reset-btn:hover {
+            background: #8614f0;
+            color: #fff;
+            box-shadow: 0 0 8px rgba(255, 68, 68, 0.5);
+        }
+
+        /* Полный экран для оверлея RESPECT + */
+        .respect-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999999; 
+            pointer-events: none; 
+            transition: background 0.8s ease;
+        }
+
+        .gta-mission-box {
+            font-family: 'Pricedown', 'Arial Black', sans-serif;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0px;
+            opacity: 0;
+            transform: scale(0.6);
+            transition: all 0.35s cubic-bezier(0.25, 1, 0.5, 1.15);
+        }
+
+        .mission-title {
+            font-size: 7.5rem;
+            letter-spacing: -1px;
+            background: linear-gradient(to bottom, #8614f0, #c403ff 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.05;
+            filter: drop-shadow(-2.5px -2.5px 0 #000) 
+                    drop-shadow(2.5px -2.5px 0 #000) 
+                    drop-shadow(-2.5px 2.5px 0 #000) 
+                    drop-shadow(2.5px 2.5px 0 #000);
+        }
+
+        .respect-row {
+            font-size: 5rem;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-shadow: 
+                -2.5px -2.5px 0 #000,  2.5px -2.5px 0 #000, 
+                -2.5px  2.5px 0 #000,  2.5px  2.5px 0 #000,
+                -2.5px  0px   0 #000,  2.5px  0px   0 #000,  
+                0px   -2.5px 0 #000,  0px    2.5px 0 #000;
+        }
+
+        .respect-overlay.active {
+            background: rgba(0, 0, 0, 0.35);
+        }
+        
+        .respect-overlay.active .gta-mission-box {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        @media (max-width: 768px) {
+            .mission-title {
+                font-size: 4rem;
+                filter: drop-shadow(-1.5px -1.5px 0 #000) drop-shadow(1.5px -1.5px 0 #000) drop-shadow(-1.5px 1.5px 0 #000) drop-shadow(1.5px 1.5px 0 #000);
+            }
+            .respect-row {
+                font-size: 2.6rem;
+                gap: 8px;
+                text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Минималистичная панель счетчика и сброса -->
+    <div class="counter-box">
+        <span>Ярость: <span id="counter-value">0/0</span></span>
+        <button id="reset-btn" title="Сбросить весь прогресс">✕</button>
+    </div>
+
+    <!-- Контейнер с картой -->
+    <div class="map-container"> 
+        <!-- Картинка фона -->
+        <img src="./map.jpg" alt="Карта" class="map-image">  
+        
+        <!-- ТОЧНЫЕ метки -->
+    <div class="marker rampage" id="rampage_1" data-pair="pair_1" style="left: 81.31%; top: 49.70%;" data-title="Ярость 1"><img data-src="./rampage/1.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_2" data-pair="pair_1" style="left: 78.75%; top: 51.62%;" data-title="Ярость 2"><img data-src="./rampage/2.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_3" data-pair="pair_2" style="left: 78.30%; top: 56.44%;" data-title="Ярость 3"><img data-src="./rampage/3.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_4" data-pair="pair_3" style="left: 80.06%; top: 58.78%;" data-title="Ярость 4"><img data-src="./rampage/4.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_5" data-pair="pair_4" style="left: 77.86%; top: 58.57%;" data-title="Ярость 5"><img data-src="./rampage/5.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_6" data-pair="pair_4" style="left: 80.32%; top: 65.01%;" data-title="Ярость 6"><img data-src="./rampage/6.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_7" data-pair="pair_2" style="left: 76.58%; top: 67.28%;" data-title="Ярость 7"><img data-src="./rampage/7.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_8" data-pair="pair_5" style="left: 75.14%; top: 69.07%;" data-title="Ярость 8"><img data-src="./rampage/8.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_9" data-pair="pair_6" style="left: 72.86%; top: 70.86%;" data-title="Ярость 9"><img data-src="./rampage/9.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_10" data-pair="pair_3" style="left: 69.89%; top: 67.06%;" data-title="Ярость 10"><img data-src="./rampage/10.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_11" data-pair="pair_6" style="left: 71.84%; top: 53.54%;" data-title="Ярость 11"><img data-src="./rampage/11.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_12" data-pair="pair_13" style="left: 57.80%; top: 43.20%;" data-title="Ярость 12"><img data-src="./rampage/12.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_13" data-pair="pair_13" style="left: 50.44%; top: 49.22%;" data-title="Ярость 13"><img data-src="./rampage/13.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_14" data-pair="pair_12" style="left: 50.28%; top: 51.65%;" data-title="Ярость 14"><img data-src="./rampage/14.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_15" data-pair="pair_12" style="left: 44.46%; top: 54.08%;" data-title="Ярость 15"><img data-src="./rampage/15.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_16" data-pair="pair_10" style="left: 49.32%; top: 58.22%;" data-title="Ярость 16"><img data-src="./rampage/16.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_17" data-pair="pair_11" style="left: 55.98%; top: 59.93%;" data-title="Ярость 17"><img data-src="./rampage/17.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_18" data-pair="pair_11" style="left: 56.30%; top: 67.10%;" data-title="Ярость 18"><img data-src="./rampage/18.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_19" data-pair="pair_10" style="left: 46.22%; top: 70.89%;" data-title="Ярость 19"><img data-src="./rampage/19.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_20" data-pair="pair_9" style="left: 44.39%; top: 76.89%;" data-title="Ярость 20"><img data-src="./rampage/20.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_21" data-pair="pair_8" style="left: 45.15%; top: 78.97%;" data-title="Ярость 21"><img data-src="./rampage/21.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_22" data-pair="pair_7" style="left: 51.47%; top: 85.85%;" data-title="Ярость 22"><img data-src="./rampage/22.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_23" data-pair="pair_9" style="left: 42.86%; top: 88.28%;" data-title="Ярость 23"><img data-src="./rampage/23.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_24" data-pair="pair_8" style="left: 45.18%; top: 93.66%;" data-title="Ярость 24"><img data-src="./rampage/24.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_25" data-pair="pair_7" style="left: 57.50%; top: 88.54%;" data-title="Ярость 25"><img data-src="./rampage/25.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_26" data-pair="pair_14" style="left: 26.53%; top: 60.21%;" data-title="Ярость 26"><img data-src="./rampage/26.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_27" data-pair="pair_15" style="left: 28.74%; top: 52.91%;" data-title="Ярость 27"><img data-src="./rampage/27.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_28" data-pair="pair_16" style="left: 20.48%; top: 49.14%;" data-title="Ярость 28"><img data-src="./rampage/28.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_29" data-pair="pair_17" style="left: 18.88%; top: 45.30%;" data-title="Ярость 29"><img data-src="./rampage/29.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_30" data-pair="pair_16" style="left: 22.52%; top: 43.27%;" data-title="Ярость 30"><img data-src="./rampage/30.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_31" data-pair="pair_14" style="left: 13.52%; top: 47.11%;" data-title="Ярость 31"><img data-src="./rampage/31.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_32" data-pair="pair_19" style="left: 14.12%; top: 39.65%;" data-title="Ярость 32"><img data-src="./rampage/32.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_33" data-pair="pair_19" style="left: 13.60%; top: 36.34%;" data-title="Ярость 33"><img data-src="./rampage/33.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_34" data-pair="pair_18" style="left: 14.48%; top: 32.45%;" data-title="Ярость 34"><img data-src="./rampage/34.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_35" data-pair="pair_17" style="left: 16.68%; top: 30.69%;" data-title="Ярость 35"><img data-src="./rampage/35.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_36" data-pair="pair_20" style="left: 24.08%; top: 33.25%;" data-title="Ярость 36"><img data-src="./rampage/36.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_37" data-pair="pair_15" style="left: 30.68%; top: 38.95%;" data-title="Ярость 37"><img data-src="./rampage/37.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_38" data-pair="pair_20" style="left: 34.16%; top: 33.51%;" data-title="Ярость 38"><img data-src="./rampage/38.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_39" data-pair="pair_18" style="left: 29.96%; top: 27.65%;" data-title="Ярость 39"><img data-src="./rampage/39.jpg" loading="lazy" alt="в работе"></div>
+    <div class="marker rampage" id="rampage_40" data-pair="pair_5" style="left: 72.56%; top: 74.57%;" data-title="Ярость 40"><img data-src="./rampage/40.jpg" loading="lazy" alt="в работе"></div>
+</div>
+
+    <!-- Двухстрочный оверлей в точном соответствии с игрой -->
+    <div id="respect-screen" class="respect-overlay">
+        <div class="gta-mission-box">
+            <div class="mission-title">миссия выполнена!</div>
+            <div class="respect-row">
+                <span>УВАЖЕНИЕ</span>
+                <span>+</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        // Получаем необходимые элементы интерфейса
+    const mapContainer = document.querySelector('.map-container');
+    const counterValue = document.getElementById('counter-value');
+    const resetBtn = document.getElementById('reset-btn');
+
+    // Настройки для эффекта RESPECT
+    const respectScreen = document.getElementById('respect-screen');
+    const respectAudio = new Audio("./audio/respect2.m4a");
+    let isRespectTriggered = false;
+
+    // Настройки зума и сдвига карты
+    let scale = 1;
+    let posX = 0;
+    let posY = 0;
+
+    // Переменные для перетаскивания зажатой ЛКМ и пальцем
+    let isDragging = false;
+    let hasDragged = false;
+    let startX = 0;
+    let startY = 0;
+    let initialPinchDistance = null;
+    let initialScale = 1;
+
+    function applyTransform(smooth = false) {
+        mapContainer.style.transition = smooth ? 'transform 0.1s ease-out' : 'none';
+        mapContainer.style.setProperty('--map-scale', scale);
+        mapContainer.style.setProperty('--zoom-x', `${posX}px`);
+        mapContainer.style.setProperty('--zoom-y', `${posY}px`);
+    }
+
+    // Подсчет уникальных миссий (парные метки с одинаковым data-pair считаются за 1)
+    function getRampageStats() {
+        const allMarkers = document.querySelectorAll('.marker.rampage');
+        const totalUnits = new Set();
+        const collectedUnits = new Set();
+
+        allMarkers.forEach((marker, index) => {
+            const unitId = marker.getAttribute('data-pair') || marker.id || `single_${index}`;
+            totalUnits.add(unitId);
+
+            if (marker.classList.contains('collected')) {
+                collectedUnits.add(unitId);
+            }
+        });
+
+        return {
+            total: totalUnits.size,
+            collected: collectedUnits.size
+        };
+    }
+
+    function updateCounter() {
+        const { total, collected } = getRampageStats();
+        counterValue.textContent = `${collected}/${total}`;
+
+        resetBtn.style.display = collected > 0 ? 'inline-block' : 'none';
+
+        if (collected < total) {
+            isRespectTriggered = false;
+        }
+    }
+
+    function triggerRespectEffect() {
+        if (isRespectTriggered) return;
+        isRespectTriggered = true;
+
+        respectScreen.classList.add('active');
+        respectAudio.play().catch(() => console.log("Кликните по карте, чтобы браузер разрешил воспроизведение звука"));
+
+        setTimeout(() => {
+            respectScreen.classList.remove('active');
+        }, 13000);
+    }
+
+    resetBtn.addEventListener('click', () => {
+        if (confirm('Вы уверены, что хотите сбросить весь прогресс прохождения Ярости?')) {
+            document.querySelectorAll('.marker.rampage').forEach(marker => {
+                marker.classList.remove('collected', 'show-screenshot');
+                localStorage.removeItem(marker.id);
+            });
+            updateCounter();
+        }
+    });
+
+    // 1. УМНЫЙ ЗУМ ЗА МЫШКОЙ (ПК)
+    mapContainer.addEventListener('wheel', (e) => {
+        e.preventDefault();
+
+        const rect = mapContainer.getBoundingClientRect();
+        const cursorX = e.clientX - rect.left;
+        const cursorY = e.clientY - rect.top;
+
+        const originX = cursorX / scale;
+        const originY = cursorY / scale;
+
+        const zoomFactor = e.deltaY < 0 ? 1.25 : 1 / 1.25;
+        const nextScale = Math.max(1, Math.min(scale * zoomFactor, 25));
+
+        posX += cursorX - originX * nextScale;
+        posY += cursorY - originY * nextScale;
+        scale = nextScale;
+
+        if (scale === 1) { 
+            posX = 0; 
+            posY = 0; 
+        }
+
+        applyTransform(true);
+    }, { passive: false });
+
+    // 2. ПЕРЕТАСКИВАНИЕ КАРТЫ ЗАЖАТОЙ ЛКМ (ПК)
+    mapContainer.addEventListener('mousedown', (e) => {
+        if (e.button !== 0 || scale === 0) return;
+        isDragging = true;
+        hasDragged = false;
+        startX = e.clientX - posX;
+        startY = e.clientY - posY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const moveX = e.clientX - startX;
+        const moveY = e.clientY - startY;
+
+        if (Math.abs(moveX - posX) > 3 || Math.abs(moveY - posY) > 3) {
+            hasDragged = true;
+        }
+
+        posX = moveX;
+        posY = moveY;
+        applyTransform(false);
+    });
+
+    window.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+    // 3. ПЕРЕТАСКИВАНИЕ И ЗУМ ДВУМЯ ПАЛЬЦАМИ (СМАРТФОНЫ)
+    mapContainer.addEventListener('touchstart', (e) => {
+        hasDragged = false;
+        if (e.touches.length === 1 && scale > 1) {
+            isDragging = true;
+            startX = e.touches[0].clientX - posX;
+            startY = e.touches[0].clientY - posY;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            initialPinchDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            initialScale = scale;
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchmove', (e) => {
+        if (e.touches.length === 1 && isDragging) {
+            e.preventDefault();
+            const moveX = e.touches[0].clientX - startX;
+            const moveY = e.touches[0].clientY - startY;
+            if (Math.abs(moveX - posX) > 4 || Math.abs(moveY - posY) > 4) {
+                hasDragged = true;
+            }
+            posX = moveX;
+            posY = moveY;
+            applyTransform(false);
+        } else if (e.touches.length === 2 && initialPinchDistance) {
+            e.preventDefault();
+            hasDragged = true;
+            const currentDistance = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const rect = mapContainer.getBoundingClientRect();
+            const centerX = ((e.touches[0].clientX + e.touches[1].clientX) / 2) - rect.left;
+            const centerY = ((e.touches[0].clientY + e.touches[1].clientY) / 2) - rect.top;
+            
+            const originX = centerX / scale;
+            const originY = centerY / scale;
+            const nextScale = Math.max(1, Math.min(initialScale * (currentDistance / initialPinchDistance), 25));
+
+            posX += centerX - originX * nextScale;
+            posY += centerY - originY * nextScale;
+            scale = nextScale;
+
+            if (scale === 1) { posX = 0; posY = 0; }
+            applyTransform(false);
+        }
+    }, { passive: false });
+
+    mapContainer.addEventListener('touchend', () => {
+        isDragging = false;
+        initialPinchDistance = null;
+    });
+
+    // 4. БАЗОВАЯ ЛОГИКА ПАРНЫХ МЕТОК И ТОЧНЫЕ КООРДИНАТЫ В F12
+    document.querySelectorAll('.marker.rampage').forEach((marker, index) => {
+        if (!marker.id) marker.id = 'p' + (index + 1);
+        
+        // Восстановление состояния из localStorage (с учетом парных меток)
+        if (localStorage.getItem(marker.id) === 'collected') {
+            const pairId = marker.getAttribute('data-pair');
+            if (pairId) {
+                document.querySelectorAll(`.marker.rampage[data-pair="${pairId}"]`).forEach(m => m.classList.add('collected'));
+            } else {
+                marker.classList.add('collected');
+            }
+        }
+    });
+
+    updateCounter();
+
+    mapContainer.addEventListener('click', (event) => {
+        if (hasDragged) {
+            hasDragged = false;
+            return;
+        }
+
+        const clickedMarker = event.target.closest('.marker.rampage');
+
+        if (clickedMarker) {
+            event.stopPropagation(); 
+            if (event.target.tagName === 'IMG') return;
+
+            // Находим все связанные метки по атрибуту data-pair (или только нажатую, если пары нет)
+            const pairId = clickedMarker.getAttribute('data-pair');
+            const targetMarkers = pairId 
+                ? document.querySelectorAll(`.marker.rampage[data-pair="${pairId}"]`) 
+                : [clickedMarker];
+
+            const isCurrentlyCollected = clickedMarker.classList.contains('collected');
+
+            // Синхронно отмечаем/снимаем выполнение и обновляем localStorage
+            targetMarkers.forEach(marker => {
+                if (isCurrentlyCollected) {
+                    marker.classList.remove('collected');
+                    localStorage.removeItem(marker.id);
+                } else {
+                    marker.classList.add('collected');
+                    localStorage.setItem(marker.id, 'collected');
+                }
+            });
+
+            updateCounter();
+
+            // Проверка завершения всех уникальных миссий для запуска RESPECT +
+            const { total, collected } = getRampageStats();
+            if (collected === total && total > 0) {
+                triggerRespectEffect();
+            }
+
+            // Показ или скрытие скриншота (открывается только у нажатой точки)
+            if (clickedMarker.classList.contains('show-screenshot')) {
+                clickedMarker.classList.remove('show-screenshot');
+            } else {
+                document.querySelectorAll('.marker.rampage').forEach(m => m.classList.remove('show-screenshot'));
+                
+                const img = clickedMarker.querySelector('img');
+                if (img && img.getAttribute('data-src')) {
+                    img.src = img.getAttribute('data-src');
+                    img.removeAttribute('data-src');
+                }
+                clickedMarker.classList.add('show-screenshot');
+            }
+
+        } else {
+            // Клик мимо точки — закрыть все открытые скриншоты
+            document.querySelectorAll('.marker.rampage').forEach(marker => {
+                marker.classList.remove('show-screenshot');
+            });
+
+            // ТОЧНАЯ ГЕНЕРАЦИЯ КООРДИНАТ В F12
+            const rect = mapContainer.getBoundingClientRect();
+            const left = (((event.clientX - rect.left) / rect.width) * 100).toFixed(2);
+            const top = (((event.clientY - rect.top) / rect.height) * 100).toFixed(2);
+            const nextIndex = document.querySelectorAll('.marker.rampage').length + 1;
+
+            console.log(`<div class="marker rampage" id="rampage_${nextIndex}" data-pair="pair_X" style="left: ${left}%; top: ${top}%;" data-title="Ярость ${nextIndex}"><img data-src="./rampage/${nextIndex}.jpg" loading="lazy" alt="в работе"></div>`);
+
+            updateCounter();
+        }
+    });
+
+</script>
+
+</body>
+</html>
